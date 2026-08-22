@@ -1,0 +1,19 @@
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Baloo+2:wght@700;800&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#fff8f0;--surface:#fff;--surface2:#fff3e8;--border:#ffe0c0;
+  --primary:#ff6b35;--primary-lt:#fff0eb;
+  --purple:#7c3aed;--purple-lt:#f5f3ff;
+  --teal:#0d9488;--teal-lt:#f0fdfa;
+  --amber:#d97706;--amber-lt:#fffbeb;
+  --green:#059669;--green-lt:#ecfdf5;
+  --rose:#e11d48;--rose-lt:#fff1f2;
+  --text:#1a1a2e;--text2:#4b5563;--text3:#9ca3af;
+  --r:16px;--rsm:10px;--sh:0 2px 12px rgba(255,107,53,.1);--shlg:0 8px 32px rgba(255,107,53,.18);
+  font-family:'Nunito',system-ui,sans-serif;
+}
+body{background:var(--bg);color:var(--text);min-height:100dvh}
+button{font-family:inherit;cursor:pointer;border:none;outline:none}
+input,textarea,select{font-family:inherit}
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
