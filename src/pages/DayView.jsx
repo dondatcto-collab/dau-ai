@@ -15,22 +15,153 @@ function Confetti({ show }) {
 
 function ChatInput({ onSend, disabled }) {
   const [text, setText] = useState('')
+  const [attachment, setAttachment] = useState(null)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [fileError, setFileError] = useState('')
+  const imageRef = useRef(null)
+  const audioRef = useRef(null)
+  const videoRef = useRef(null)
   const sending = useRef(false)
+
+  const LIMITS = {
+    image: 8 * 1024 * 1024,
+    audio: 12 * 1024 * 1024,
+    video: 12 * 1024 * 1024,
+  }
+
+  const KIND_LABEL = {
+    image: 'ảnh',
+    audio: 'âm thanh',
+    video: 'video',
+  }
+
+  const guessMimeType = (file, kind) => {
+    if (file.type) return file.type
+    const ext = (file.name.split('.').pop() || '').toLowerCase()
+    const byExt = {
+      jpg:'image/jpeg', jpeg:'image/jpeg', png:'image/png', webp:'image/webp',
+      mp3:'audio/mpeg', m4a:'audio/mp4', aac:'audio/aac', wav:'audio/wav',
+      mp4:'video/mp4', mov:'video/quicktime', webm:'video/webm',
+    }
+    return byExt[ext] || (kind === 'image' ? 'image/jpeg' : kind === 'audio' ? 'audio/mpeg' : 'video/mp4')
+  }
+
+  const isValidFile = (file, kind) => {
+    const mime = guessMimeType(file, kind)
+    if (kind === 'image') return ['image/jpeg','image/png','image/webp'].includes(mime)
+    if (kind === 'audio') return ['audio/mpeg','audio/mp4','audio/x-m4a','audio/aac','audio/wav','audio/x-wav'].includes(mime) || mime.startsWith('audio/')
+    if (kind === 'video') return ['video/mp4','video/quicktime','video/webm'].includes(mime)
+    return false
+  }
+
+  const readFile = (file, kind) => {
+    if (!file) return
+    const label = KIND_LABEL[kind]
+    if (!isValidFile(file, kind)) {
+      setFileError(`Em chọn đúng file ${label} nhé.`)
+      return
+    }
+    if (file.size > LIMITS[kind]) {
+      const mb = Math.round(LIMITS[kind] / 1024 / 1024)
+      setFileError(`${label.charAt(0).toUpperCase() + label.slice(1)} hơi lớn. Em chọn file dưới ${mb} MB nhé.`)
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = () => {
+      const dataUrl = String(reader.result || '')
+      const dataBase64 = dataUrl.includes(',') ? dataUrl.split(',')[1] : ''
+      setAttachment({
+        kind,
+        name: file.name,
+        mimeType: guessMimeType(file, kind),
+        size: file.size,
+        dataUrl,
+        dataBase64,
+      })
+      setFileError('')
+      setMenuOpen(false)
+    }
+    reader.onerror = () => setFileError('Anh chưa đọc được file này. Em thử file khác nhé.')
+    reader.readAsDataURL(file)
+  }
+
+  const clearInputs = () => {
+    if (imageRef.current) imageRef.current.value = ''
+    if (audioRef.current) audioRef.current.value = ''
+    if (videoRef.current) videoRef.current.value = ''
+  }
+
   const send = () => {
-    if (!text.trim() || disabled || sending.current) return
-    sending.current = true; onSend(text.trim()); setText('')
+    if ((!text.trim() && !attachment) || disabled || sending.current) return
+    sending.current = true
+    onSend(text.trim(), attachment)
+    setText('')
+    setAttachment(null)
+    setMenuOpen(false)
+    clearInputs()
     setTimeout(() => { sending.current = false }, 1500)
   }
+
+  const canSend = (!!text.trim() || !!attachment) && !disabled
+  const kindIcon = attachment?.kind === 'image' ? '📷' : attachment?.kind === 'audio' ? '🎤' : '🎬'
+  const kindHelp = attachment?.kind === 'image'
+    ? 'Ảnh gửi cho Đô La xem'
+    : attachment?.kind === 'audio'
+      ? 'Âm thanh gửi cho Đô La nghe'
+      : 'Video gửi cho Đô La xem và nghe'
+
   return (
-    <div style={{ padding:'10px 14px', background:'var(--surface)', borderTop:'1px solid var(--border)', display:'flex', gap:8 }}>
-      <input value={text} onChange={e => setText(e.target.value)}
-        onKeyDown={e => e.key==='Enter' && !e.shiftKey && (e.preventDefault(), send())}
-        placeholder="Hỏi anh Đô La..." disabled={disabled}
-        style={{ flex:1, padding:'10px 14px', borderRadius:99, border:'1.5px solid var(--border)', fontSize:15, outline:'none', fontFamily:'inherit', background:'var(--surface)', color:'var(--text)' }}
-        onFocus={e => e.target.style.borderColor='var(--primary)'}
-        onBlur={e => e.target.style.borderColor='var(--border)'} />
-      <button onClick={send} disabled={!text.trim()||disabled}
-        style={{ width:44, height:44, borderRadius:'50%', background:(text.trim()&&!disabled)?'var(--primary)':'var(--border)', color:'#fff', fontSize:18, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, transition:'background .2s' }}>▶</button>
+    <div style={{ background:'var(--surface)', borderTop:'1px solid var(--border)', padding:'8px 12px 10px' }}>
+      {attachment && (
+        <div style={{ marginBottom:8, padding:10, border:'1px solid var(--border)', borderRadius:12, background:'var(--surface2)', display:'flex', gap:10, alignItems:'center' }}>
+          {attachment.kind === 'image' ? (
+            <img src={attachment.dataUrl} alt="Ảnh em chọn" style={{ width:54, height:54, objectFit:'cover', borderRadius:10, border:'1px solid var(--border)' }} />
+          ) : attachment.kind === 'video' ? (
+            <video src={attachment.dataUrl} muted playsInline style={{ width:72, height:54, objectFit:'cover', borderRadius:10, border:'1px solid var(--border)', background:'#111' }} />
+          ) : (
+            <div style={{ width:54, height:54, borderRadius:10, background:'var(--primary-lt)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:24 }}>🎤</div>
+          )}
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ fontSize:12, fontWeight:800, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{attachment.name}</div>
+            <div style={{ fontSize:11, color:'var(--text3)', marginTop:2 }}>{kindHelp}</div>
+          </div>
+          <button onClick={() => { setAttachment(null); clearInputs() }} aria-label="Bỏ file" style={{ width:30, height:30, borderRadius:'50%', background:'var(--surface)', border:'1px solid var(--border)', color:'var(--text2)', fontWeight:800 }}>×</button>
+        </div>
+      )}
+
+      {fileError && <div style={{ marginBottom:7, fontSize:12, color:'var(--rose)' }}>⚠️ {fileError}</div>}
+
+      <div style={{ display:'flex', gap:8, alignItems:'center', position:'relative' }}>
+        <input ref={imageRef} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={e => readFile(e.target.files?.[0], 'image')} />
+        <input ref={audioRef} type="file" accept="audio/mpeg,audio/mp4,audio/x-m4a,audio/aac,audio/wav,audio/*" hidden onChange={e => readFile(e.target.files?.[0], 'audio')} />
+        <input ref={videoRef} type="file" accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm" hidden onChange={e => readFile(e.target.files?.[0], 'video')} />
+
+        <div style={{ position:'relative' }}>
+          <button onClick={() => setMenuOpen(v => !v)} disabled={disabled} aria-label="Thêm ảnh, âm thanh hoặc video"
+            style={{ width:44, height:44, borderRadius:'50%', background:'var(--surface2)', border:'1.5px solid var(--border)', color:'var(--primary)', fontSize:24, display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700 }}>＋</button>
+          {menuOpen && !disabled && (
+            <div style={{ position:'absolute', bottom:52, left:0, width:205, background:'var(--surface)', border:'1px solid var(--border)', boxShadow:'var(--shlg)', borderRadius:14, padding:7, zIndex:30 }}>
+              <button onClick={() => imageRef.current?.click()} style={{ width:'100%', padding:'10px 11px', borderRadius:9, textAlign:'left', background:'transparent', color:'var(--text)', fontSize:13, fontWeight:700 }}>📷 Gửi ảnh</button>
+              <button onClick={() => audioRef.current?.click()} style={{ width:'100%', padding:'10px 11px', borderRadius:9, textAlign:'left', background:'transparent', color:'var(--text)', fontSize:13, fontWeight:700 }}>🎤 Gửi âm thanh</button>
+              <button onClick={() => videoRef.current?.click()} style={{ width:'100%', padding:'10px 11px', borderRadius:9, textAlign:'left', background:'transparent', color:'var(--text)', fontSize:13, fontWeight:700 }}>🎬 Gửi video</button>
+              <div style={{ borderTop:'1px solid var(--border)', margin:'4px 4px 0', padding:'8px 7px 3px', fontSize:10.5, color:'var(--text3)', lineHeight:1.4 }}>
+                🛡️ Không gửi địa chỉ nhà, trường học, giấy tờ hay thông tin riêng tư nhé.<br />
+                🎬 Video nên là đoạn ngắn dưới 12 MB.
+              </div>
+            </div>
+          )}
+        </div>
+
+        <input value={text} onChange={e => setText(e.target.value)}
+          onKeyDown={e => e.key==='Enter' && !e.shiftKey && (e.preventDefault(), send())}
+          placeholder={attachment ? `Nói Đô La biết em muốn anh ${attachment.kind === 'audio' ? 'nghe' : 'xem'} gì...` : 'Hỏi anh Đô La...'} disabled={disabled}
+          style={{ flex:1, minWidth:0, padding:'10px 14px', borderRadius:99, border:'1.5px solid var(--border)', fontSize:15, outline:'none', fontFamily:'inherit', background:'var(--surface)', color:'var(--text)' }}
+          onFocus={e => e.target.style.borderColor='var(--primary)'}
+          onBlur={e => e.target.style.borderColor='var(--border)'} />
+        <button onClick={send} disabled={!canSend}
+          style={{ width:44, height:44, borderRadius:'50%', background:canSend?'var(--primary)':'var(--border)', color:'#fff', fontSize:18, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, transition:'background .2s' }}>▶</button>
+      </div>
     </div>
   )
 }
@@ -73,7 +204,7 @@ export default function DayView({ dayId, state, onBack, onComplete, onSaveJourna
 
   const handleSaveMsg = useCallback((msg) => { if (onSaveChatMessage) onSaveChatMessage(dayId, msg) }, [dayId])
 
-  const handleSend = (text) => ai.sendMessage(text, day.title, phase.id, state.childName, activities, currentAct, handleSaveMsg)
+  const handleSend = (text, attachment) => ai.sendMessage(text, day.title, phase.id, state.childName, activities, currentAct, handleSaveMsg, attachment)
 
   const handleActDone = (idx) => {
     if (checking === idx) return
@@ -240,6 +371,20 @@ export default function DayView({ dayId, state, onBack, onComplete, onSaveJourna
                   background:m.role==='user'?`linear-gradient(135deg,${pc},var(--purple))`:'var(--surface)',
                   color:m.role==='user'?'#fff':'var(--text)', fontSize:14, lineHeight:1.65, boxShadow:'var(--sh)',
                   border:m.role==='assistant'?'1px solid var(--border)':'none', whiteSpace:'pre-wrap' }}>
+                  {m.attachment && m.attachment.kind === 'image' && m.attachment.dataUrl && (
+                    <img src={m.attachment.dataUrl} alt={m.attachment.name || 'Ảnh em gửi'} style={{ display:'block', width:'100%', maxHeight:260, objectFit:'contain', borderRadius:10, marginBottom:m.content?8:0, background:'#fff' }} />
+                  )}
+                  {m.attachment && m.attachment.kind === 'audio' && m.attachment.dataUrl && (
+                    <audio controls src={m.attachment.dataUrl} style={{ display:'block', width:'100%', maxWidth:280, marginBottom:m.content?8:0 }} />
+                  )}
+                  {m.attachment && m.attachment.kind === 'video' && m.attachment.dataUrl && (
+                    <video controls playsInline src={m.attachment.dataUrl} style={{ display:'block', width:'100%', maxHeight:280, borderRadius:10, marginBottom:m.content?8:0, background:'#111' }} />
+                  )}
+                  {m.attachment && !m.attachment.dataUrl && (
+                    <div style={{ fontSize:12, fontWeight:700, marginBottom:m.content?6:0, opacity:.9 }}>
+                      {m.attachment.kind === 'image' ? '📷' : m.attachment.kind === 'audio' ? '🎤' : '🎬'} {m.attachment.name || 'Tệp đã gửi'}
+                    </div>
+                  )}
                   {m.content}
                 </div>
               </div>
